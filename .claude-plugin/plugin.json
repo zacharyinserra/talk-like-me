@@ -1,0 +1,7 @@
+{
+  "name": "my-voice",
+  "version": "0.1.0",
+  "description": "Draft comments, messages and commits that go out under your name in your own wording. Learns your voice from your GitHub comments, commits and pasted samples, and blocks posts that read like Claude wrote them.",
+  "keywords": ["writing", "voice", "style", "github", "slack", "email", "ghostwriting"],
+  "license": "MIT"
+}

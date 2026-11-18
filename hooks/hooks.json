@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__.*(send|post|comment|reply|review|draft|message).*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs\" hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

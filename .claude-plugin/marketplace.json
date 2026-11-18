@@ -1,0 +1,12 @@
+{
+  "name": "my-voice-local",
+  "owner": { "name": "local" },
+  "description": "Local marketplace for the my-voice plugin.",
+  "plugins": [
+    {
+      "name": "my-voice",
+      "source": "./",
+      "description": "Write things posted as you in your own voice."
+    }
+  ]
+}
