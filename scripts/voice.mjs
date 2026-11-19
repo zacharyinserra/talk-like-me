@@ -8,15 +8,15 @@
 //   voice.mjs stats                          recompute rules.json from samples, print summary
 //   voice.mjs show <context> [--n N]         print N random samples for a context
 //   voice.mjs check <context> [file|-]       lint a draft against your rules
-//   voice.mjs config [capture on|off]        show settings, or toggle saving your prompts as samples
+//   voice.mjs config [capture|respond on|off] show or change settings
 //   voice.mjs hook                           PreToolUse hook (reads hook JSON on stdin)
-//   voice.mjs capture                        UserPromptSubmit hook; does nothing unless capture is on
+//   voice.mjs prompt                         UserPromptSubmit hook: capture and/or respond-like-me, per config
 //
 // Data lives in ~/.claude/talk-like-me (override with TALK_LIKE_ME_DIR):
 //   samples/<context>.jsonl   {text, source, hash}
 //   rules.json                measured habits + phrase lists (hand-editable "extra_banned"/"allow")
 //   profile.md                written by Claude during /talk-like-me:learn
-//   config.json               {capture_prompts: bool}; TALK_LIKE_ME_CAPTURE=on|off overrides it
+//   config.json               {capture_prompts, respond_like_me}; TALK_LIKE_ME_CAPTURE / _RESPOND=on|off override
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -367,33 +367,67 @@ function saveConfig(c) {
   fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n');
 }
 
-function captureEnabled() {
-  const env = process.env.TALK_LIKE_ME_CAPTURE;
+// setting name -> config.json key and env override
+const SETTINGS = {
+  capture: { key: 'capture_prompts', env: 'TALK_LIKE_ME_CAPTURE', about: 'save your prompts to Claude as chat samples' },
+  respond: { key: 'respond_like_me', env: 'TALK_LIKE_ME_RESPOND', about: "Claude's own replies to you use your voice" },
+};
+
+function enabled(name) {
+  const s = SETTINGS[name];
+  const env = process.env[s.env];
   if (env === 'off') return false;
   if (env === 'on') return true;
-  return loadConfig().capture_prompts === true;
+  return loadConfig()[s.key] === true;
 }
 
 function config(args) {
-  const [key, value] = args;
-  if (key === 'capture') {
-    if (!['on', 'off'].includes(value)) {
-      console.error('usage: voice.mjs config capture on|off');
+  const [name, value] = args;
+  if (name) {
+    if (!SETTINGS[name] || !['on', 'off'].includes(value)) {
+      console.error(`usage: voice.mjs config <${Object.keys(SETTINGS).join('|')}> on|off`);
       process.exit(2);
     }
     const c = loadConfig();
-    c.capture_prompts = value === 'on';
+    c[SETTINGS[name].key] = value === 'on';
     saveConfig(c);
-  } else if (key) {
-    console.error(`unknown setting: ${key}`);
-    process.exit(2);
   }
   const c = loadConfig();
-  const n = loadSamples('chat').length;
-  console.log(`capture_prompts: ${c.capture_prompts === true ? 'on' : 'off'}`);
-  if (process.env.TALK_LIKE_ME_CAPTURE) console.log(`  (TALK_LIKE_ME_CAPTURE=${process.env.TALK_LIKE_ME_CAPTURE} overrides this)`);
-  console.log(`chat samples: ${n}`);
+  for (const [n, s] of Object.entries(SETTINGS)) {
+    console.log(`${n}: ${c[s.key] === true ? 'on' : 'off'}  (${s.about})`);
+    if (process.env[s.env]) console.log(`  ${s.env}=${process.env[s.env]} overrides this`);
+  }
+  console.log(`chat samples: ${loadSamples('chat').length}`);
   console.log(`config file: ${CONFIG}`);
+}
+
+// The parts of profile.md that describe how the user writes, trimmed to fit
+// in every turn's context.
+function voiceSummary() {
+  let profile;
+  try {
+    profile = fs.readFileSync(path.join(DIR, 'profile.md'), 'utf8');
+  } catch {
+    return null;
+  }
+  const sections = profile.split(/^(?=## )/m);
+  const pick = (re) => sections.filter((s) => re.test(s.split('\n')[0])).map((s) => s.trim());
+  const parts = [...pick(/^## (Overall|chat)/i), ...pick(/^## Never/i), ...pick(/^## Corrections/i)]
+    .map((s) => s.replace(/^\(filled in over time[^)]*\)\s*$/m, '').trim())
+    .filter((s) => s.split('\n').length > 1);
+  const text = parts.join('\n\n');
+  return text.length > 3000 ? text.slice(0, 3000) + '\n…' : text;
+}
+
+function respondContext() {
+  const voice = voiceSummary();
+  const lead =
+    "[talk-like-me] Respond-like-me is on: write your replies to the user the way the user writes, as if they'd typed them. ";
+  const keep =
+    'Keep code, commands, file paths, numbers and quoted errors exact, and keep the technical content complete; the voice applies to the prose around it. ' +
+    'Write safety warnings, confirmations before risky or irreversible actions, and step sequences that could be misread in plain, clear wording.';
+  if (!voice) return lead + 'No profile.md yet, so mirror the user\'s own messages in this conversation (casing, punctuation, length, tone). ' + keep;
+  return `${lead}${keep}\n\nTheir voice (from ~/.claude/talk-like-me/profile.md):\n\n${voice}`;
 }
 
 // Keep only what the user typed themselves. Pasted logs, code and injected
@@ -413,10 +447,22 @@ function cleanPrompt(raw) {
   return text;
 }
 
-function capture() {
+// UserPromptSubmit hook. stdout here is added to Claude's context, so print
+// only the respond-like-me instructions and nothing else.
+function promptHook() {
+  let evt = {};
   try {
-    if (!captureEnabled()) return;
-    const evt = JSON.parse(fs.readFileSync(0, 'utf8'));
+    evt = JSON.parse(fs.readFileSync(0, 'utf8'));
+  } catch {}
+  try {
+    if (enabled('respond')) process.stdout.write(respondContext() + '\n');
+  } catch {}
+  capture(evt);
+}
+
+function capture(evt) {
+  try {
+    if (!enabled('capture')) return;
     const text = cleanPrompt(evt.prompt || '');
     if (!text) return;
     const { added } = saveSamples('chat', [text], 'prompt');
@@ -596,10 +642,10 @@ const commands = {
   check: () => runCheck(args),
   config: () => config(args),
   hook,
-  capture,
+  prompt: promptHook,
 };
 if (!commands[cmd]) {
-  console.error('usage: voice.mjs <import-gh|import-git|add|prune|stats|show|check|config|hook|capture> ...');
+  console.error('usage: voice.mjs <import-gh|import-git|add|prune|stats|show|check|config|hook|prompt> ...');
   process.exit(2);
 }
 commands[cmd]();

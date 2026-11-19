@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs\" capture",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs\" prompt",
             "timeout": 5
           }
         ]
