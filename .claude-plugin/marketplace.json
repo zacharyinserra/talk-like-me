@@ -1,10 +1,10 @@
 {
-  "name": "my-voice-local",
+  "name": "talk-like-me-local",
   "owner": { "name": "local" },
-  "description": "Local marketplace for the my-voice plugin.",
+  "description": "Local marketplace for the talk-like-me plugin.",
   "plugins": [
     {
-      "name": "my-voice",
+      "name": "talk-like-me",
       "source": "./",
       "description": "Write things posted as you in your own voice."
     }

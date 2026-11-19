@@ -9,7 +9,7 @@ Text that goes out under the user's name must read as if they typed it. Readers 
 
 ## 1. Load the voice
 
-The voice data lives in `~/.claude/my-voice/` (or `$MY_VOICE_DIR`):
+The voice data lives in `~/.claude/talk-like-me/` (or `$TALK_LIKE_ME_DIR`):
 
 - `profile.md`: the written description of how they write. Read it every time.
 - `rules.json`: measured habits per context (length, casing, punctuation, emoji, bullets) and phrases they never use.
@@ -23,7 +23,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs" show <context> --n 15
 
 Read them for the thing you are about to write. An approval, a pushback, a question and a bug report each have their own shape; find the closest ones.
 
-**No profile yet?** Say once that `/my-voice:learn` would make this much better. Meanwhile, use the user's own messages in this conversation as the voice sample (casing, length, punctuation, how direct they are) and keep the draft short and plain.
+**No profile yet?** Say once that `/talk-like-me:learn` would make this much better. Meanwhile, use the user's own messages in this conversation as the voice sample (casing, length, punctuation, how direct they are) and keep the draft short and plain.
 
 **Project conventions win.** If the repo sets a format for commits, PR descriptions or issue comments (CLAUDE.md, AGENTS.md, CONTRIBUTING, commitlint, PR templates, or a consistent style in recent history), follow it. The user's voice is for conversational text: replies, review comments, chat, email. For a formatted PR body or commit it only shapes the wording inside that format.
 

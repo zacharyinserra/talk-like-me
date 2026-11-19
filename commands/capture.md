@@ -11,7 +11,7 @@ Requested: $ARGUMENTS
 
 Report the result in a line or two. When turning it on, also say:
 
-- From the next message on, what they type to Claude is saved locally to `~/.claude/my-voice/samples/chat.jsonl` as the `chat` context. Slash commands, pasted blocks, code, quoted lines and messages under three words are skipped.
-- `rules.json` is recomputed every 25 new samples. `profile.md` only changes when they run `/my-voice:learn` again.
+- From the next message on, what they type to Claude is saved locally to `~/.claude/talk-like-me/samples/chat.jsonl` as the `chat` context. Slash commands, pasted blocks, code, quoted lines and messages under three words are skipped.
+- `rules.json` is recomputed every 25 new samples. `profile.md` only changes when they run `/talk-like-me:learn` again.
 - Messages to Claude are not quite how they write to people, so `chat` stays its own context. Review or trim it with `voice.mjs show chat` and `voice.mjs prune chat --drop <regex>`.
-- `MY_VOICE_CAPTURE=off` pauses it for one session without changing the setting.
+- `TALK_LIKE_ME_CAPTURE=off` pauses it for one session without changing the setting.

@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash(node:*), Bash(gh auth status), Bash(git c
 Sources requested: $ARGUMENTS
 (If empty: use GitHub, plus commits from the current repo if it is one, then offer the paste option.)
 
-Script: `node "${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs"`. Data dir: `~/.claude/my-voice/` (or `$MY_VOICE_DIR`).
+Script: `node "${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs"`. Data dir: `~/.claude/talk-like-me/` (or `$TALK_LIKE_ME_DIR`).
 
 1. **Collect samples.** Run whichever apply:
    - `github`: `voice.mjs import-gh --limit 100` (issue/PR comments, PR descriptions, review comments; needs `gh` logged in)

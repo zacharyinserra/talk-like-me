@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// my-voice: collect writing samples, measure them, and check drafts against them.
+// talk-like-me: collect writing samples, measure them, and check drafts against them.
 //
 //   voice.mjs import-gh [--limit N]          your GitHub issue/PR comments, PR bodies, review comments
 //   voice.mjs import-git [repo] [--limit N]  your commit messages in a repo (default: cwd)
@@ -12,11 +12,11 @@
 //   voice.mjs hook                           PreToolUse hook (reads hook JSON on stdin)
 //   voice.mjs capture                        UserPromptSubmit hook; does nothing unless capture is on
 //
-// Data lives in ~/.claude/my-voice (override with MY_VOICE_DIR):
+// Data lives in ~/.claude/talk-like-me (override with TALK_LIKE_ME_DIR):
 //   samples/<context>.jsonl   {text, source, hash}
 //   rules.json                measured habits + phrase lists (hand-editable "extra_banned"/"allow")
-//   profile.md                written by Claude during /my-voice:learn
-//   config.json               {capture_prompts: bool}; MY_VOICE_CAPTURE=on|off overrides it
+//   profile.md                written by Claude during /talk-like-me:learn
+//   config.json               {capture_prompts: bool}; TALK_LIKE_ME_CAPTURE=on|off overrides it
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-const DIR = process.env.MY_VOICE_DIR || path.join(os.homedir(), '.claude', 'my-voice');
+const DIR = process.env.TALK_LIKE_ME_DIR || path.join(os.homedir(), '.claude', 'talk-like-me');
 const SAMPLES = path.join(DIR, 'samples');
 const RULES = path.join(DIR, 'rules.json');
 const CONFIG = path.join(DIR, 'config.json');
@@ -368,7 +368,7 @@ function saveConfig(c) {
 }
 
 function captureEnabled() {
-  const env = process.env.MY_VOICE_CAPTURE;
+  const env = process.env.TALK_LIKE_ME_CAPTURE;
   if (env === 'off') return false;
   if (env === 'on') return true;
   return loadConfig().capture_prompts === true;
@@ -391,7 +391,7 @@ function config(args) {
   const c = loadConfig();
   const n = loadSamples('chat').length;
   console.log(`capture_prompts: ${c.capture_prompts === true ? 'on' : 'off'}`);
-  if (process.env.MY_VOICE_CAPTURE) console.log(`  (MY_VOICE_CAPTURE=${process.env.MY_VOICE_CAPTURE} overrides this)`);
+  if (process.env.TALK_LIKE_ME_CAPTURE) console.log(`  (TALK_LIKE_ME_CAPTURE=${process.env.TALK_LIKE_ME_CAPTURE} overrides this)`);
   console.log(`chat samples: ${n}`);
   console.log(`config file: ${CONFIG}`);
 }
@@ -542,7 +542,7 @@ function textFromMcp(tool, input) {
 }
 
 function hook() {
-  if (process.env.MY_VOICE_HOOK === 'off') return;
+  if (process.env.TALK_LIKE_ME_HOOK === 'off') return;
   let evt;
   try {
     evt = JSON.parse(fs.readFileSync(0, 'utf8'));
@@ -558,7 +558,7 @@ function hook() {
 
   // If Claude resubmits the exact same text after a block, the user asked for it
   // as-is. Let it through instead of looping.
-  const seenFile = path.join(os.tmpdir(), 'my-voice-blocked.json');
+  const seenFile = path.join(os.tmpdir(), 'talk-like-me-blocked.json');
   let seen = {};
   try {
     seen = JSON.parse(fs.readFileSync(seenFile, 'utf8'));
@@ -572,9 +572,9 @@ function hook() {
   } catch {}
 
   const reason =
-    `my-voice: this ${found.context} text goes out under the user's name but doesn't sound like them:\n` +
+    `talk-like-me: this ${found.context} text goes out under the user's name but doesn't sound like them:\n` +
     problems.map((p) => `- ${p}`).join('\n') +
-    `\nRewrite it in their voice (see ~/.claude/my-voice/profile.md) and try again. ` +
+    `\nRewrite it in their voice (see ~/.claude/talk-like-me/profile.md) and try again. ` +
     `If the user asked for this exact wording, resend it unchanged and it will go through.`;
   process.stdout.write(
     JSON.stringify({
