@@ -15,7 +15,7 @@ The voice data lives in `~/.claude/my-voice/` (or `$MY_VOICE_DIR`):
 - `rules.json`: measured habits per context (length, casing, punctuation, emoji, bullets) and phrases they never use.
 - `samples/<context>.jsonl`: their real messages.
 
-Pick the context: `github` (issue/PR comments, reviews, PR bodies), `commit`, `slack` (any chat), `email`, or `default`. Then pull real examples:
+Pick the context: `github` (issue/PR comments, reviews, PR bodies), `commit`, `slack` (any chat), `email`, or `default`. If that context has few or no samples, `chat` (the user's own messages to Claude, saved when capture is on) is the next best source for casing, punctuation and phrasing, but people write to Claude more tersely than to coworkers, so don't copy its length or bluntness one-to-one. Then pull real examples:
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/scripts/voice.mjs" show <context> --n 15

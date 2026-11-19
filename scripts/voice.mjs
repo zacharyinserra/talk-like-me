@@ -8,12 +8,15 @@
 //   voice.mjs stats                          recompute rules.json from samples, print summary
 //   voice.mjs show <context> [--n N]         print N random samples for a context
 //   voice.mjs check <context> [file|-]       lint a draft against your rules
+//   voice.mjs config [capture on|off]        show settings, or toggle saving your prompts as samples
 //   voice.mjs hook                           PreToolUse hook (reads hook JSON on stdin)
+//   voice.mjs capture                        UserPromptSubmit hook; does nothing unless capture is on
 //
 // Data lives in ~/.claude/my-voice (override with MY_VOICE_DIR):
 //   samples/<context>.jsonl   {text, source, hash}
 //   rules.json                measured habits + phrase lists (hand-editable "extra_banned"/"allow")
 //   profile.md                written by Claude during /my-voice:learn
+//   config.json               {capture_prompts: bool}; MY_VOICE_CAPTURE=on|off overrides it
 
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -24,6 +27,8 @@ import path from 'node:path';
 const DIR = process.env.MY_VOICE_DIR || path.join(os.homedir(), '.claude', 'my-voice');
 const SAMPLES = path.join(DIR, 'samples');
 const RULES = path.join(DIR, 'rules.json');
+const CONFIG = path.join(DIR, 'config.json');
+const RESTATS_EVERY = 25;
 
 // Phrases that mark text as assistant-written. Dropped from the banned list if
 // the user's own samples use them.
@@ -308,11 +313,19 @@ function measure(samples) {
 }
 
 function stats() {
-  const all = loadSamples();
-  if (!all.length) {
+  const result = computeStats();
+  if (!result) {
     console.error(`no samples in ${SAMPLES}. Run import-gh, import-git or add first.`);
     process.exit(1);
   }
+  console.log(JSON.stringify({ dir: DIR, ...result }, null, 2));
+}
+
+// Writes rules.json and returns the numbers, without printing: the capture
+// hook calls this, and a UserPromptSubmit hook's stdout ends up in Claude's context.
+function computeStats() {
+  const all = loadSamples();
+  if (!all.length) return null;
   const byContext = {};
   for (const s of all) (byContext[s.context] ||= []).push(s);
 
@@ -336,7 +349,88 @@ function stats() {
   };
   ensureDirs();
   fs.writeFileSync(RULES, JSON.stringify(rules, null, 2) + '\n');
-  console.log(JSON.stringify({ dir: DIR, overall, contexts }, null, 2));
+  return { overall, contexts };
+}
+
+// ---------- config + prompt capture ----------
+
+function loadConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(CONFIG, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function saveConfig(c) {
+  ensureDirs();
+  fs.writeFileSync(CONFIG, JSON.stringify(c, null, 2) + '\n');
+}
+
+function captureEnabled() {
+  const env = process.env.MY_VOICE_CAPTURE;
+  if (env === 'off') return false;
+  if (env === 'on') return true;
+  return loadConfig().capture_prompts === true;
+}
+
+function config(args) {
+  const [key, value] = args;
+  if (key === 'capture') {
+    if (!['on', 'off'].includes(value)) {
+      console.error('usage: voice.mjs config capture on|off');
+      process.exit(2);
+    }
+    const c = loadConfig();
+    c.capture_prompts = value === 'on';
+    saveConfig(c);
+  } else if (key) {
+    console.error(`unknown setting: ${key}`);
+    process.exit(2);
+  }
+  const c = loadConfig();
+  const n = loadSamples('chat').length;
+  console.log(`capture_prompts: ${c.capture_prompts === true ? 'on' : 'off'}`);
+  if (process.env.MY_VOICE_CAPTURE) console.log(`  (MY_VOICE_CAPTURE=${process.env.MY_VOICE_CAPTURE} overrides this)`);
+  console.log(`chat samples: ${n}`);
+  console.log(`config file: ${CONFIG}`);
+}
+
+// Keep only what the user typed themselves. Pasted logs, code and injected
+// context aren't their voice.
+function cleanPrompt(raw) {
+  if (/^\s*[/!#]/.test(raw)) return null; // slash command, bash mode, memory shortcut
+  const text = raw
+    .replace(/<([a-z][\w-]*)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ') // <system-reminder>, <pasted_content>, ...
+    .replace(/```[\s\S]*?```/g, ' ')
+    .split('\n')
+    .filter((l) => !/^\s*>/.test(l))
+    .join('\n')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
+  if (text.length > 1200 || text.split('\n').length > 12) return null; // probably pasted
+  if (words(prose(text)).length < 3) return null;
+  return text;
+}
+
+function capture() {
+  try {
+    if (!captureEnabled()) return;
+    const evt = JSON.parse(fs.readFileSync(0, 'utf8'));
+    const text = cleanPrompt(evt.prompt || '');
+    if (!text) return;
+    const { added } = saveSamples('chat', [text], 'prompt');
+    if (!added) return;
+    const c = loadConfig();
+    c.captured_since_stats = (c.captured_since_stats || 0) + 1;
+    if (c.captured_since_stats >= RESTATS_EVERY) {
+      computeStats();
+      c.captured_since_stats = 0;
+    }
+    saveConfig(c);
+  } catch {
+    // never get in the way of the user's prompt
+  }
 }
 
 function show(args) {
@@ -500,10 +594,12 @@ const commands = {
   stats,
   show: () => show(args),
   check: () => runCheck(args),
+  config: () => config(args),
   hook,
+  capture,
 };
 if (!commands[cmd]) {
-  console.error('usage: voice.mjs <import-gh|import-git|add|stats|show|check|hook> ...');
+  console.error('usage: voice.mjs <import-gh|import-git|add|prune|stats|show|check|config|hook|capture> ...');
   process.exit(2);
 }
 commands[cmd]();
